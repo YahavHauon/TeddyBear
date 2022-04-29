@@ -1,105 +1,163 @@
-
-import { createContext, useState, useEffect, useCallback } from "react";
-import { StyleSheet, Image } from 'react-native';
-import * as Premissions from 'expo-permissions';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { asyncStorageTags, cardPropety } from "../util/strings";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Premissions from "expo-permissions";
+import { createContext, useEffect, useState } from "react";
+import { StyleSheet } from "react-native";
+import {
+  asyncStorageTags,
+  notificationStrings,
+  screens,
+} from "../util/strings";
+import * as Notifications from "expo-notifications";
+import { useNavigation } from "@react-navigation/native";
 
 export const NotificationContext = createContext<{
-    notificationArray: any[],
-    unreadNotications: number,
-    addNotification: (notification: any) => void,
-    notificationHasSeen: (id: number) => void,
-    hasReadNotication: () => void,
-
+  notificationArray: any[];
+  addNotification: (notification: any) => void;
+  notificationHasSeen: (id: string) => void;
+  triggerNotificationHandler: (champion: any) => void;
+  unreadNotificationsExist: boolean;
 }>({
-    notificationArray: [],
-    unreadNotications: 0,
-    addNotification: () => { },
-    notificationHasSeen: () => { },
-    hasReadNotication: () => { }
+  notificationArray: [],
+  unreadNotificationsExist: false,
+  addNotification: () => {},
+  triggerNotificationHandler: () => {},
+  notificationHasSeen: () => {},
 });
 
-const NotificationContextProvider = ({ children }) => {
-    const [notificationArray, setNotificationArray] = useState<any[]>([]);
-    const [unreadNotications, setUnreadNotications] = useState(0);
+const NotificationContextProvider = ({ children }: any) => {
+  const [notificationArray, setNotificationArray] = useState<any[]>([]);
+  const navigation = useNavigation();
 
-    useEffect(() => {
-        Premissions.getAsync(Premissions.NOTIFICATIONS).then((statusObj) => {
-            if (statusObj?.status !== 'granted') {
-                return Premissions.askAsync(Premissions.NOTIFICATIONS);
-            }
-            return statusObj;
-        }).then((statusObj) => {
-            if (statusObj?.status === 'granted') {
-                return;
-            }
+  const [unreadNotificationsExist, setUnreadNotificationsExist] =
+    useState<boolean>(false);
+
+  useEffect(() => {
+    Premissions.getAsync(Premissions.NOTIFICATIONS)
+      .then((statusObj) => {
+        if (statusObj?.status !== "granted") {
+          return Premissions.askAsync(Premissions.NOTIFICATIONS);
+        }
+        return statusObj;
+      })
+      .then((statusObj) => {
+        if (statusObj?.status === "granted") {
+          return;
+        }
+      });
+  }, []);
+
+  useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => {
+        return {
+          shouldShowAlert: true,
+          shouldSetBadge: true,
+          shouldPlaySound: true,
+        };
+      },
+    });
+  }, []);
+
+  useEffect(() => {
+    const backgroundSubscription =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        notificationHasSeen(
+          response.notification.request.content.data.notificationData.id
+        );
+        navigation.navigate(screens.modalScreen, {
+          imageArray: response.notification.request.content.data.imageArray,
         });
-    }, []);
+      });
 
+    const foregroundSubscription =
+      Notifications.addNotificationReceivedListener((notification: any) => {
+        addNotification(notification.request.content.data.notificationData);
+      });
 
-    useEffect(() => {
-        fetchNotify();
-    }, []);
-    useEffect(() => {
-        storeNotify();
-    }, [notificationArray, unreadNotications]);
+    return () => {
+      backgroundSubscription.remove();
+      foregroundSubscription.remove();
+    };
+  }, []);
 
-    const storeNotify = async () => {
-        let newArray = JSON.stringify(notificationArray);
-        let num = JSON.stringify(unreadNotications);
-        try {
-            await AsyncStorage.setItem(asyncStorageTags.notifyArray, newArray)
-            await AsyncStorage.setItem(asyncStorageTags.unReadMsgs, num)
-        } catch (e) {
-            // saving error
-        }
-    }
+  useEffect(() => {
+    fetchNotify();
+  }, []);
 
-    const fetchNotify = async () => {
+  useEffect(() => {
+    storeNotify();
 
-        try {
-            let temp = await AsyncStorage.getItem(asyncStorageTags.notifyArray)
-            let tempNum = await AsyncStorage.getItem(asyncStorageTags.unReadMsgs)
-            if (temp) {
-                let newArray = JSON.parse(temp);
-                setNotificationArray(newArray);
-            }
-            setUnreadNotications(tempNum ? JSON.parse(tempNum) : 0);
-        } catch (e) {
-            console.log(e);
-        }
-    }
-    const addNotification = (notification: any) => {
-        setNotificationArray((notificationArray) => [notification, ...notificationArray]);
-        setUnreadNotications((unreadNotications) => unreadNotications + 1);
-    }
-
-    const notificationHasSeen = (id: number) => {
-        let newArray = [...notificationArray];
-        newArray[id]['hasSeen'] = true;
-        setNotificationArray(newArray);
-    }
-
-    const hasReadNotication = () => {
-        setUnreadNotications((unreadNotications) => unreadNotications - 1);
-    }
-    return (
-        <NotificationContext.Provider value={{
-            notificationArray,
-            addNotification,
-            notificationHasSeen,
-            hasReadNotication,
-            unreadNotications
-        }}>
-            {children}
-        </NotificationContext.Provider>
+    setUnreadNotificationsExist(
+      notificationArray.filter((item) => !item.hasSeen).length > 0
     );
+  }, [notificationArray]);
+
+  const triggerNotificationHandler = (champion: any) => {
+    Notifications.scheduleNotificationAsync({
+      content: {
+        title: notificationStrings.triggeredNotificationTitle,
+        body: notificationStrings.notificationTitle(champion.name),
+        data: {
+          imageArray: champion.imageArray,
+          notificationData: champion,
+          name: champion.name,
+        },
+      },
+      trigger: {},
+    });
+  };
+
+  const storeNotify = async () => {
+    let newArray = JSON.stringify(notificationArray);
+    try {
+      await AsyncStorage.setItem(asyncStorageTags.notifyArray, newArray);
+    } catch (e) {
+      // saving error
+    }
+  };
+
+  const fetchNotify = async () => {
+    try {
+      let temp = await AsyncStorage.getItem(asyncStorageTags.notifyArray);
+
+      if (temp) {
+        let newArray = JSON.parse(temp);
+        console.log(newArray.length);
+
+        setNotificationArray(newArray);
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  const addNotification = (notification: any) => {
+    setNotificationArray((notificationArray) => [
+      notification,
+      ...notificationArray,
+    ]);
+  };
+
+  const notificationHasSeen = (id: string) => {
+    let newArray = [...notificationArray];
+    newArray.find((item) => item.id === id && !item.hasSeen)["hasSeen"] = true;
+    setNotificationArray(newArray);
+  };
+
+  return (
+    <NotificationContext.Provider
+      value={{
+        notificationArray,
+        unreadNotificationsExist,
+        triggerNotificationHandler,
+        addNotification,
+        notificationHasSeen,
+      }}
+    >
+      {children}
+    </NotificationContext.Provider>
+  );
 };
 
 export { NotificationContextProvider };
 export default NotificationContext;
-
-const styles = StyleSheet.create({
-
-});

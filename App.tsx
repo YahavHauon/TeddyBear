@@ -1,18 +1,15 @@
-import { colors } from './util/colors';
-import { ChampionsContextProvider } from './store/champions-context';
-import Navigation from './Navigation';
-import { NotificationContextProvider } from './store/notification-context';
-import { QueryClient, QueryClientProvider, useQuery } from 'react-query';
+import { QueryClient, QueryClientProvider } from "react-query";
+import Navigation from "./Navigation";
+import { ChampionsContextProvider } from "./store/champions-context";
+import { NotificationContextProvider } from "./store/notification-context";
 
 export default function App() {
-  const queryClient = new QueryClient()
+  const queryClient = new QueryClient();
   return (
     <QueryClientProvider client={queryClient}>
-      <NotificationContextProvider>
-        <ChampionsContextProvider>
-          <Navigation />
-        </ChampionsContextProvider>
-      </NotificationContextProvider>
+      <ChampionsContextProvider>
+        <Navigation />
+      </ChampionsContextProvider>
     </QueryClientProvider>
   );
 }
