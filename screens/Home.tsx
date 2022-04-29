@@ -1,27 +1,34 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Image, SafeAreaView, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Image, ActivityIndicator, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../util/colors';
 import ChampionsContext from '../store/champions-context';
-import { useContext, useEffect } from 'react';
+import { useContext } from 'react';
 import Swipe from '../Components/Swipe';
+import NotificationContext from '../store/notification-context';
+import { screens } from '../util/strings';
+import AppLoading from 'expo-app-loading';
 
-const Home = () => {
+const Home = ({ navigation }: any) => {
 
-    const { fetchChampionData, championList, championListRendered } = useContext(ChampionsContext);
+    const { championList } = useContext(ChampionsContext);
+    const { unreadNotications } = useContext(NotificationContext);
 
+    const notificationsHandler = () => {
+        navigation.navigate(screens.notificationsScreen);
+    }
     return (
         <View style={styles.container} >
             <View style={styles.toolBar}>
                 <Image style={styles.logo} source={require('../assets/logo.png')} />
-                <View style={styles.bell}>
-                    <Ionicons name="notifications" color={colors.tinder} size={30} />
-                </View>
+
             </View>
             <StatusBar style='light' />
-            {championListRendered.length > 0 ? <Swipe /> : <ActivityIndicator style={styles.indicator} size="large" />}
-            <SafeAreaView>
-            </SafeAreaView>
+            {championList.length > 0 ? (<Swipe />) : <AppLoading />}
+            <Pressable style={styles.bell} onPress={notificationsHandler} >
+                <Ionicons name="notifications" color={colors.tinder} size={30} />
+                {unreadNotications === 0 ? null : <View style={styles.notifcations} />}
+            </Pressable>
         </View >
     );
 }
@@ -54,7 +61,9 @@ const styles = StyleSheet.create({
         height: 45,
     },
     bell: {
-        marginTop: 5,
+        position: 'absolute',
+        right: 0,
+        top: 60,
         marginRight: 15,
     },
     endOfDeck: {
@@ -70,5 +79,13 @@ const styles = StyleSheet.create({
         top: 0,
         bottom: 0,
         alignSelf: 'center'
+    },
+    notifcations: {
+        backgroundColor: colors.tinder,
+        height: 8,
+        width: 8,
+        position: 'absolute',
+        right: 0,
+        borderRadius: 100,
     }
 });

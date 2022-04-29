@@ -3,16 +3,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState, } from 'react';
 import IconButton from './IconButton';
 import { useNavigation } from '@react-navigation/native';
+import { cardPropety, screens } from '../util/strings';
 
 
-const ImageSlider = ({ data, id }) => {
+const ImageSlider = ({ data, id }: any) => {
     const [index, setIndex] = useState(0);
     const [imagePath, setImagePath] = useState(data[id].imageArray[0]);
     const [array, setArray] = useState([]);
     const navigation = useNavigation();
 
     const openPictureModal = () => {
-        navigation.navigate('Modal', { imageArray: data[id].imageArray });
+        navigation.navigate(screens.modalScreen, { imageArray: data[id].imageArray });
     }
 
     const imageSlider = (side: String, id: number) => {
@@ -44,12 +45,12 @@ const ImageSlider = ({ data, id }) => {
             <View style={index === 2 ? styles.imageCounterBlockOn : styles.imageCounterBlockOff}></View>
         </View>
         <View style={styles.textContainer}>
-            <View style={{ flexDirection: 'row' }}>
+            <View style={styles.flexRow}>
                 <Text style={styles.title}>{data[id].name}</Text>
                 <Text style={styles.age}>{data[id].age}</Text>
             </View>
             <View style={styles.description}>
-                {data[id].tags.map((tag: string) => {
+                {data[id][cardPropety.tags].map((tag: string) => {
                     return (
                         <View key={Math.random().toString()} style={styles.descriptionItem}>
                             <Text style={styles.descriptionText}>
@@ -112,17 +113,6 @@ const styles = StyleSheet.create({
         marginVertical: 120,
         marginHorizontal: 5,
     },
-    backImage: {
-        position: 'absolute',
-        height: '100%',
-        width: '35%',
-    },
-    forwardImage: {
-        right: 0,
-        position: 'absolute',
-        height: '100%',
-        width: '35%',
-    },
     middleImage: {
         alignSelf: 'center',
         position: 'absolute',
@@ -174,4 +164,5 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         borderRadius: 16,
     },
+    flexRow: { flexDirection: 'row' },
 });

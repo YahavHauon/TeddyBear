@@ -1,11 +1,11 @@
 
 import { createContext, useState, useEffect, useCallback } from "react";
-import { Animated, Pressable, PanResponder, StyleSheet, Dimensions, Image } from 'react-native';
+import { StyleSheet, Image } from 'react-native';
+import { useQuery } from "react-query";
 import { fetchData } from "../util/http";
-import { colors } from "../util/colors";
-import ImageSlider from "../Components/ImageSlider";
-import Toast from 'react-native-root-toast';
-const champions = [
+import { apiDomains, attributes, cardPropety, queryTag } from "../util/strings";
+
+const DummyData = [
     { id: 0, name: "Riven", imageArray: [require('../assets/riven1.png'), require('../assets/riven2.png'), require('../assets/riven3.png')] },
     { id: 1, name: "Akali", imageArray: [require('../assets/akali1.png'), require('../assets/akali2.png'), require('../assets/akali3.png')] },
     { id: 2, name: "Annie", imageArray: [require('../assets/annie1.png'), require('../assets/annie2.png'), require('../assets/annie3.png')] },
@@ -15,186 +15,27 @@ const champions = [
     { id: 6, name: "Ahri", imageArray: [require('../assets/ahri1.png'), require('../assets/ahri2.png'), require('../assets/ahri3.png')] },
     { id: 7, name: "Caitlyn", imageArray: [require('../assets/caitlyn1.png'), require('../assets/caitlyn2.png'), require('../assets/caitlyn3.png')] },
 ];
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const position = new Animated.ValueXY();
-const likeOpacity = position.x.interpolate({
-    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 3],
-    outputRange: [1, 1, 0.2],
-    extrapolate: 'clamp'
-})
-
-const nopeOpacity = position.x.interpolate({
-    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 3],
-    outputRange: [0.2, 1, 1],
-    extrapolate: 'clamp'
-})
-
-const rotate = position.x.interpolate({
-    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-    outputRange: ['-10deg', '0deg', '10deg'],
-    extrapolate: 'clamp'
-})
-
-const rotateAndTranslate = {
-    transform: [{
-        rotate
-    },
-    ...position.getTranslateTransform()
-    ]
-}
-
-const nextCardOpacity = position.x.interpolate({
-    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-    outputRange: [1, 0, 1],
-    extrapolate: 'clamp'
-})
-
-const nextCardScale = position.x.interpolate({
-    inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
-    outputRange: [1, 0.8, 1],
-    extrapolate: 'clamp'
-})
-
-
 export const ChampionsContext = createContext<{
     championList: any[],
     fetchChampionData: () => void,
-    isLoading: boolean,
-    championListRendered: any[],
 }>({
     championList: [],
     fetchChampionData: () => { },
-    isLoading: false,
-    championListRendered: []
 });
 
 const ChampionsContextProvider = ({ children }) => {
     const [championList, setChampionList] = useState<any[]>([]);
-    const [championListRendered, setChampionListRendered] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-
-    const [currentIndex, setCurrentIndex] = useState(0);
+    const { data, status } = useQuery(queryTag.champions, fetchData);
 
     useEffect(() => {
-        if (championList.length === 0) {
-            fetchChampionData();
-        } else {
-            setChampionListRendered(renderCards());
+        if (status === "success") {
+            addDataToList(data);
         }
-    }, [championList]);
+    }, [data]);
 
-
-
-
-    const pan = PanResponder.create({
-        onStartShouldSetPanResponder: (evt, gestureState) => true,
-        onPanResponderMove: (evt, gestureState) => {
-            position.setValue({ x: gestureState.dx, y: gestureState.dy });
-        },
-        onPanResponderRelease: (evt, gestureState) => {
-            if (gestureState.dx > 120) {
-                Animated.timing(position, {
-                    toValue: { x: SCREEN_WIDTH + 100, y: gestureState.dy },
-                    useNativeDriver: false, duration: 0
-                }).start(() => {
-                    matchHandler();
-                    position.setValue({ x: 0, y: 0 });
-                })
-            } else if (gestureState.dx < -120) {
-                Animated.timing(position, {
-                    toValue: { x: -SCREEN_WIDTH - 100, y: gestureState.dy },
-                    useNativeDriver: false, duration: 0
-                }).start(() => {
-                    setCurrentIndex(currentIndex + 1)
-                    position.setValue({ x: 0, y: 0 });
-
-                })
-            }
-            else {
-                Animated.spring(position, {
-                    toValue: { x: 0, y: 0 },
-                    useNativeDriver: false,
-                    friction: 4
-                }).start()
-            }
-        }
-    });
-
-    const xHandler = () => {
-        setCurrentIndex(currentIndex + 1);
-    }
-
-    const matchHandler = () => {
-        Toast.show('Its a MATCH', {
-            duration: 1000,
-            position: Toast.positions.CENTER,
-            shadow: true,
-            backgroundColor: colors.tinder,
-            opacity: 1,
-            hideOnPress: true,
-            delay: 0,
-        });
-        setCurrentIndex(currentIndex + 1)
-    }
-
-    const renderCards = useCallback(() => {
-        return championList.map((item, i) => {
-            if (i < currentIndex) {
-                return null;
-            } else if (i === currentIndex) {
-                return (
-                    <Animated.View
-                        {...pan.panHandlers}
-                        key={item.id}
-                        style={
-                            [rotateAndTranslate,
-                                {
-                                    height: SCREEN_HEIGHT - 70,
-                                    width: SCREEN_WIDTH,
-                                    padding: 10,
-                                    position: 'absolute'
-                                }]
-                        }>
-                        <ImageSlider id={i} data={championList} />
-                        <Animated.View
-                            style={{ ...styles.cardLabelContainer, opacity: likeOpacity }}
-                        >
-                            <Pressable onPress={matchHandler}>
-                                <Image style={styles.heartIcon} source={require('../assets/heartIcon.png')} />
-                            </Pressable>
-                        </Animated.View>
-
-                        <Animated.View
-                            style={{ ...styles.cardLabelContainerRight, opacity: nopeOpacity }}
-                        >
-                            <Pressable onPress={xHandler}>
-                                <Image style={styles.xIcon} source={require('../assets/Xicon.png')} />
-                            </Pressable>
-                        </Animated.View>
-
-
-                    </Animated.View>
-                );
-            } else {
-                return (
-                    <Animated.View
-                        key={i}
-                        style={[{
-                            opacity: nextCardOpacity,
-                            transform: [{ scale: nextCardScale }],
-                            height: SCREEN_HEIGHT - 70, width: SCREEN_WIDTH, padding: 10, position: 'absolute'
-                        }]
-                        }>
-                        <ImageSlider id={i} data={championList} />
-                    </Animated.View>
-                );
-            }
-        }).reverse();
-    }, [currentIndex, championList]);
 
     const randomAttribute = () => {
-        let randomArrayOfAttributes = ['Aoe clear', 'Engager', 'TopLaner', 'Low cd', 'MidLaner', 'Jungler', 'Good Ult', 'Support'];
+        let randomArrayOfAttributes = attributes.attributeArray;
         let currentArrayOfAttributes: string[] = [];
         let rnd = Math.floor(Math.random() * (5 - 2 + 1) + 2);
         for (let i = 0; i < rnd; i++) {
@@ -209,24 +50,19 @@ const ChampionsContextProvider = ({ children }) => {
         return currentArrayOfAttributes;
     }
 
-    const addDataToList = () => {
-        champions.forEach((item: any) => {
-            item["tags"] = randomAttribute();
-            item["age"] = Math.floor(Math.random() * (60 - 20 + 1) + 20);
-        })
-        setChampionList(champions);
+    const fetchChampionData = () => {
+
     }
-
-    const fetchChampionData = async () => {
-
-        let result: any;
-        try {
-            result = await fetchData();
-            addDataToList();
-        } catch (error) {
-            console.log(error);
-            return;
-        }
+    const addDataToList = (data: any) => {
+        const API_DOMAIN_PICTURE = apiDomains.championPictureTemplet;
+        const array2 = Object.values(data.data)
+        const array = [array2[20], array2[21], array2[22], array2[23], array2[18], array2[25], array2[26]];
+        array.forEach((item: any) => {
+            item[cardPropety.tags] = randomAttribute();
+            item[cardPropety.age] = Math.floor(Math.random() * (60 - 20 + 1) + 20);
+            item[cardPropety.imageArray] = [{ uri: `${API_DOMAIN_PICTURE}${item.id}_0.jpg` }, { uri: `${API_DOMAIN_PICTURE}${item.name}_1.jpg` }, { uri: `${API_DOMAIN_PICTURE}${item.name}_2.jpg` }];
+        })
+        setChampionList(array);
     }
 
 
@@ -234,8 +70,6 @@ const ChampionsContextProvider = ({ children }) => {
         <ChampionsContext.Provider value={{
             championList,
             fetchChampionData,
-            isLoading,
-            championListRendered
         }}>
             {children}
         </ChampionsContext.Provider>

@@ -1,16 +1,47 @@
-import { StyleSheet, Text, View, Dimensions, Image, Animated, PanResponder, Pressable, PermissionsAndroid } from 'react-native';
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, View, Dimensions, Image, Animated, PanResponder, Pressable } from 'react-native';
+import { useCallback, useContext, useEffect, useState } from 'react';
 import ImageSlider from './ImageSlider';
 import ChampionsContext from '../store/champions-context';
-import Toast from 'react-native-root-toast';
-import { colors } from '../util/colors';
+import * as Notifications from 'expo-notifications';
+import { useNavigation } from '@react-navigation/native';
+import NotificationContext from '../store/notification-context';
+import { noMoreMatches, notification, screens } from '../util/strings';
+
 
 const Swipe = () => {
+    const navigation = useNavigation();
     const SCREEN_HEIGHT = Dimensions.get('window').height;
     const SCREEN_WIDTH = Dimensions.get('window').width;
     const position = new Animated.ValueXY();
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const { championList } = useContext(ChampionsContext);
+    const { addNotification, hasReadNotication, notificationHasSeen, notificationArray } = useContext(NotificationContext);
 
-    const { championList, championListRendered } = useContext(ChampionsContext);
+    useEffect(() => {
+        Notifications.setNotificationHandler({
+            handleNotification: async () => {
+                return {
+                    shouldShowAlert: true,
+                    shouldPlaySound: true,
+                };
+            }
+        });
+    }, []);
+
+    useEffect(() => {
+        const backgroundSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+            navigation.navigate(screens.modalScreen, { imageArray: response.notification.request.content.data.imageArray });
+        }
+        );
+        const foregroundSubscription = Notifications.addNotificationReceivedListener((notification: any) => {
+            addNotification(notification.request.content.data.notificationData);
+        })
+
+        return () => {
+            backgroundSubscription.remove();
+            foregroundSubscription.remove();
+        }
+    }, []);
 
     useEffect(() => { })
     const pan = PanResponder.create({
@@ -47,32 +78,37 @@ const Swipe = () => {
         }
     });
 
+    const triggerNotificationHandler = (array: any) => {
+        Notifications.scheduleNotificationAsync({
+            content: {
+                title: notification.title,
+                body: `You matched with ${array.name}`,
+                data: { imageArray: array.imageArray, notificationData: array, name: array.name },
+            },
+            trigger: {
+
+            }
+        });
+    };
     const xHandler = () => {
         setCurrentIndex(currentIndex + 1);
     }
 
     const matchHandler = () => {
-        Toast.show('Its a MATCH', {
-            duration: 1000,
-            position: Toast.positions.CENTER,
-            shadow: true,
-            backgroundColor: colors.tinder,
-            opacity: 1,
-            hideOnPress: true,
-            delay: 0,
-        });
-        setCurrentIndex(currentIndex + 1)
+
+        setCurrentIndex(currentIndex + 1);
+        triggerNotificationHandler(championList[currentIndex]);
     }
 
     const likeOpacity = position.x.interpolate({
         inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 3],
-        outputRange: [1, 1, 0.2],
+        outputRange: [0.6, 0.6, 1],
         extrapolate: 'clamp'
     })
 
     const nopeOpacity = position.x.interpolate({
         inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 3],
-        outputRange: [0.2, 1, 1],
+        outputRange: [1, 0.6, 0.6],
         extrapolate: 'clamp'
     })
 
@@ -102,12 +138,67 @@ const Swipe = () => {
         extrapolate: 'clamp'
     })
 
+    const renderCards = useCallback(() => {
+        return championList.map((item, i) => {
+            if (i < currentIndex) {
+                return null;
+            } else if (i === currentIndex) {
+                return (
+                    <Animated.View
+                        {...pan.panHandlers}
+                        key={item.id}
+                        style={
+                            [rotateAndTranslate,
+                                {
+                                    height: SCREEN_HEIGHT - 70,
+                                    width: SCREEN_WIDTH,
+                                    padding: 10,
+                                    position: 'absolute'
+                                }]
+                        }>
+                        <ImageSlider id={i} data={championList} />
+                        <Animated.View
+                            style={{ ...styles.cardLabelContainer, opacity: likeOpacity }}
+                        >
+                            <Pressable onPress={matchHandler}>
+                                <Image style={styles.heartIcon} source={require('../assets/heartIcon.png')} />
+                            </Pressable>
+                        </Animated.View>
+
+                        <Animated.View
+                            style={{ ...styles.cardLabelContainerRight, opacity: nopeOpacity }}
+                        >
+                            <Pressable onPress={xHandler}>
+                                <Image style={styles.xIcon} source={require('../assets/Xicon.png')} />
+                            </Pressable>
+                        </Animated.View>
+
+
+                    </Animated.View>
+                );
+            } else {
+                return (
+                    <Animated.View
+                        key={i}
+                        style={[{
+                            opacity: nextCardOpacity,
+                            transform: [{ scale: nextCardScale }],
+                            height: SCREEN_HEIGHT - 70, width: SCREEN_WIDTH, padding: 10, position: 'absolute'
+                        }]
+                        }>
+                        <ImageSlider id={i} data={championList} />
+                    </Animated.View>
+                );
+            }
+        }).reverse();
+    }, [currentIndex, championList]);
+
     return (<>
-        {championListRendered}
-        {/* <View style={styles.noMoreContainer}>
-            <Text style={styles.noMoreText}>No more matches in your location</Text>
-            <Text style={styles.noMoreText}> try again later</Text>
-        </View> */}
+        {renderCards()}
+        {currentIndex === championList.length ? <View style={styles.noMoreContainer}>
+            <Text style={styles.noMoreText}>{noMoreMatches.part1}</Text>
+            <Text style={styles.noMoreText}>{noMoreMatches.part2}</Text>
+        </View> : null}
     </>);
 }
 
@@ -116,8 +207,6 @@ const styles = StyleSheet.create({
     card:
     {
         flex: 1,
-        height: null,
-        width: null,
         resizeMode: 'cover',
         borderRadius: 20,
         marginTop: 100,

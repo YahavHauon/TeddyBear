@@ -3,7 +3,7 @@ import { View, StyleSheet, Image, Pressable, Text } from "react-native";
 import { colors } from "../util/colors";
 import { Ionicons } from '@expo/vector-icons';
 
-const Modal = ({ route, navigation }) => {
+const Modal = ({ route, navigation }: any) => {
     const imageArray = route.params.imageArray;
     const [imagePath, setImagePath] = useState(imageArray[0]);
     const [index, setIndex] = useState(0);
